@@ -215,7 +215,6 @@
             gap: 20px;
         }
 
-        /* FIXLENEN DEV-INFO PARLAMASI */
         .dev-container { 
             display: flex; 
             flex-direction: column; 
@@ -225,50 +224,54 @@
             cursor: default;
         }
 
-        .dev-info { 
-            color: rgba(255, 255, 255, 0.08); /* Çok opak */
-            font-size: 10px; 
-            font-weight: 500; 
-            letter-spacing: 0.5px;
-            transition: all 0.3s ease;
+        .dev-info { color: rgba(255, 255, 255, 0.08); font-size: 10px; font-weight: 500; letter-spacing: 0.5px; transition: all 0.3s ease; }
+        .dev-contact { color: rgba(255, 255, 255, 0.05); font-size: 7.5px; transition: all 0.3s ease; }
+        .dev-container:hover .dev-info { color: rgba(255, 255, 255, 0.7); text-shadow: 0 0 10px rgba(255, 255, 255, 0.5); font-size: 11px; }
+        .dev-container:hover .dev-contact { color: rgba(255, 255, 255, 0.9); text-shadow: 0 0 10px rgba(255, 255, 255, 0.4); font-size: 10px; }
+
+        /* GİRİŞ NOTU (OVERLAY) STİLİ */
+        #entry-note-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20000;
         }
 
-        .dev-contact { 
-            color: rgba(255, 255, 255, 0.05); /* Çok opak */
-            font-size: 7.5px; 
-            transition: all 0.3s ease;
+        .entry-note-box {
+            background: #161616;
+            border: 1px solid var(--accent-color);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 0 30px rgba(52, 152, 219, 0.2);
         }
 
-        /* Container'ın üzerine gelince yazılar parlar */
-        .dev-container:hover .dev-info {
-            color: rgba(255, 255, 255, 0.7); 
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-            font-size: 11px; 
+        .entry-note-box i { font-size: 40px; color: var(--accent-color); margin-bottom: 15px; }
+        .entry-note-box h2 { margin: 0 0 15px 0; font-size: 20px; color: #fff; letter-spacing: 1px; }
+        .entry-note-box p { color: #aaa; line-height: 1.6; font-size: 14px; margin-bottom: 25px; }
+        .entry-note-box button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 35px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-
-        .dev-container:hover .dev-contact {
-            color: rgba(255, 255, 255, 0.9); 
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
-            font-size: 10px; 
-        }
+        .entry-note-box button:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--accent-color); }
 
         .tier-table { width: 100%; max-width: 1000px; border-collapse: separate; border-spacing: 0 12px; }
-        
-        .player-row td { 
-            padding: 20px 25px; 
-            background: var(--card-bg); 
-            font-size: 18px; 
-            border-top: 1px solid #1f1f1f; 
-            border-bottom: 1px solid #1f1f1f; 
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-        }
-
-        .player-row:hover td { 
-            background: rgba(45, 45, 45, 0.9);
-            border-color: rgba(52, 152, 219, 0.3);
-            box-shadow: 0 0 15px rgba(52, 152, 219, 0.1);
-        }
+        .player-row td { padding: 20px 25px; background: var(--card-bg); font-size: 18px; border-top: 1px solid #1f1f1f; border-bottom: 1px solid #1f1f1f; backdrop-filter: blur(10px); transition: all 0.3s ease; }
+        .player-row:hover td { background: rgba(45, 45, 45, 0.9); border-color: rgba(52, 152, 219, 0.3); box-shadow: 0 0 15px rgba(52, 152, 219, 0.1); }
         
         .player-head { width: 45px; height: 45px; border-radius: 8px; vertical-align: middle; margin-right: 15px; image-rendering: pixelated; }
         .kit-icon { width: 28px; height: 28px; image-rendering: pixelated; }
@@ -295,6 +298,15 @@
 </head>
 <body>
     <div id="particles-js"></div>
+
+    <div id="entry-note-overlay">
+        <div class="entry-note-box">
+            <i class="fas fa-info-circle"></i>
+            <h2>ÖNEMLİ DİPNOT</h2>
+            <p>Sitede telefondan kaynaklı bazı hatalar çıkabilir. En iyi deneyim için bilgisayardan girmenizi veya telefonu yan yatırmanızı öneririz.</p>
+            <button onclick="document.getElementById('entry-note-overlay').style.display='none'">Anladım</button>
+        </div>
+    </div>
 
     <div id="customModal">
         <div class="modal-box">
