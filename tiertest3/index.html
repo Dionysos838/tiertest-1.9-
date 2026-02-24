@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TierTest [1.9+]</title>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, setDoc, doc, getDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvajbhqQG35-C7EQkP97LL4nwmXUgwjj8",
+            authDomain: "tiertest-942d7.firebaseapp.com",
+            projectId: "tiertest-942d7",
+            storageBucket: "tiertest-942d7.firebasestorage.app",
+            messagingSenderId: "882874289904",
+            appId: "1:882874289904:web:fa9ea697c0f82a6628fc35",
+            measurementId: "G-LJCHNXHB65"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const playersRef = collection(db, "players");
+        let isAdmin = false;
+        let activeFilter = "All";
+
+        const tierPriority = { "HT1": 1, "LT1": 2, "HT2": 3, "LT2": 4, "HT3": 5, "LT3": 6, "HT4": 7, "LT4": 8, "HT5": 9, "LT5": 10 };
+        const kitIcons = {
+            "Sword": "Icons/sword.png", "Crystal": "Icons/crystal.png", "Mace": "Icons/mace.png",
+            "NethPot": "Icons/nethpot.png", "SMP": "Icons/smp.png", "Axe": "Icons/axe.png", "DiaPot": "Icons/diapot.png"
+        };
+
+        onSnapshot(query(playersRef), (snapshot) => {
+            let players = [];
+            snapshot.forEach((doc) => players.push({ id: doc.id, ...doc.data() }));
+            
+            players.sort((a, b) => {
+                const getBest = (p) => p.tiers ? Math.min(...p.tiers.map(t => tierPriority[t.tier] || 99)) : 99;
+                return getBest(a) - getBest(b);
+            });
+
+            window.allPlayers = players;
+            renderTable(players);
+        });
+
+        function renderTable(players) {
+            const tbody = document.getElementById('leaderboard');
+            tbody.innerHTML = "";
+            
+            let filteredPlayers;
+            if (activeFilter === "All") {
+                filteredPlayers = players;
+            } else if (activeFilter === "TopTier") {
+                filteredPlayers = players.filter(p => {
+                    if (!p.tiers) return false;
+                    const hasVeryHigh = p.tiers.some(t => tierPriority[t.tier] <= 5);
+                    const lt3Count = p.tiers.filter(t => tierPriority[t.tier] === 6).length;
+                    return hasVeryHigh || lt3Count >= 2;
+                });
+            } else {
+                filteredPlayers = players.filter(p => p.tiers && p.tiers.some(t => t.kit === activeFilter));
+            }
+
+            filteredPlayers.forEach((p, index) => {
+                let rankClass = "";
+                if (index === 0) rankClass = "rank-gold";
+                else if (index === 1) rankClass = "rank-silver";
+                else if (index === 2) rankClass = "rank-bronze";
+
+                let kitsHtml = "";
+                if (p.tiers) {
+                    p.tiers.forEach(t => {
+                        const iconPath = kitIcons[t.kit] || "";
+                        kitsHtml += `
+                            <div class="kit-badge-item">
+                                ${iconPath ? `<img src="${iconPath}" class="kit-icon" onerror="this.style.display='none'">` : ''}
+                                <span class="tier-badge ${t.tier.toLowerCase()}">${t.tier}</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                tbody.innerHTML += `
+                    <tr class="player-row">
+                        <td class="col-rank ${rankClass}">#${index + 1}</td>
+                        <td class="col-player">
+                            <img class="player-head" src="https://mc-heads.net/avatar/${p.name}" alt="${p.name}">
+                            <strong>${p.name}</strong>
+                        </td>
+                        <td class="col-kit">
+                            <div class="multi-kit-wrapper">${kitsHtml}</div>
+                        </td>
+                        <td class="col-region">
+                            <div class="region-container">
+                                <div class="region-tag">
+                                    <img class="flag" src="https://flagcdn.com/w40/${(p.region || 'TR').toLowerCase()}.png">
+                                    <span>${p.region || 'TR'}</span>
+                                </div>
+                                <button class="hover-delete-btn" onclick="openDeleteModal('${p.name}')" style="${isAdmin ? 'display:block' : 'display:none'}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        window.filterByKit = (kit) => {
+            activeFilter = kit;
+            renderTable(window.allPlayers);
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                const btnText = btn.innerText;
+                const isMatch = (kit === 'All' && btnText === 'Hepsi') || 
+                                (kit === 'TopTier' && btnText === 'EN İYİLER') ||
+                                btnText === kit;
+                btn.classList.toggle('active', isMatch);
+            });
+        };
+
+        window.tryLogin = () => {
+            if (document.getElementById('adminPassInput').value === "tiertest123_123") {
+                isAdmin = true;
+                document.getElementById('loginArea').style.display = 'none';
+                document.getElementById('adminControls').style.display = 'block';
+                renderTable(window.allPlayers);
+            }
+        };
+
+        window.addOrUpdatePlayer = async () => {
+            const name = document.getElementById('admName').value.trim();
+            const kit = document.getElementById('admKit').value;
+            const tier = document.getElementById('admTier').value;
+            const region = document.getElementById('admRegion').value;
+            if (!name) return;
+
+            const playerDocRef = doc(db, "players", name.toLowerCase());
+            const playerDoc = await getDoc(playerDocRef);
+
+            let tiers = [];
+            if (playerDoc.exists()) {
+                tiers = playerDoc.data().tiers || [];
+                const existingIndex = tiers.findIndex(t => t.kit === kit);
+                if (existingIndex > -1) tiers[existingIndex].tier = tier;
+                else tiers.push({ kit, tier });
+            } else {
+                tiers.push({ kit, tier });
+            }
+
+            await setDoc(playerDocRef, { name, tiers, region });
+            document.getElementById('admName').value = "";
+            
+            const msg = document.getElementById('statusMsg');
+            msg.innerText = "Başarıyla Kaydedildi";
+            msg.style.opacity = "1";
+            setTimeout(() => { msg.style.opacity = "0"; }, 3000);
+        };
+
+        window.openDeleteModal = (name) => {
+            window.targetDelete = name.toLowerCase();
+            document.getElementById('confirmName').innerText = name;
+            document.getElementById('confirmHead').src = `https://mc-heads.net/avatar/${name}`;
+            document.getElementById('customModal').style.display = 'flex';
+        };
+
+        window.confirmDelete = async () => {
+            await deleteDoc(doc(db, "players", window.targetDelete));
+            document.getElementById('customModal').style.display = 'none';
+        };
+
+        window.searchPlayer = () => {
+            let term = document.getElementById('playerSearch').value.toLowerCase();
+            let tableRows = document.getElementsByClassName('player-row');
+            for (let i = 0; i < tableRows.length; i++) {
+                let name = tableRows[i].getElementsByTagName('strong')[0].textContent.toLowerCase();
+                tableRows[i].style.display = name.includes(term) ? "" : "none";
+            }
+        };
+    </script>
+
+    <style>
+        :root { --bg-color: #0d0d0d; --card-bg: rgba(22, 22, 22, 0.85); --accent-color: #3498db; }
+        #particles-js { position: fixed; width: 100%; height: 100%; top: 0; left: 0; z-index: -1; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: #f0f0f0; margin: 0; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        h1 { font-size: 3.5rem; text-transform: uppercase; letter-spacing: 5px; font-weight: 900; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .discord-link { text-decoration: none; display: inline-flex; transition: 0.3s; }
+        .discord-link i { color: #5865F2; transition: 0.3s; }
+        .discord-link:hover i { color: #fff; filter: drop-shadow(0 0 15px #5865F2) drop-shadow(0 0 30px #5865F2); transform: scale(1.1); }
+
+        .filter-section { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; justify-content: center; }
+        .filter-btn { background: var(--card-bg); border: 1px solid #333; color: #888; padding: 10px 18px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 600; }
+        .filter-btn:hover { color: #fff; border-color: var(--accent-color); }
+        .filter-btn.active { background: var(--accent-color); color: #fff; border-color: var(--accent-color); box-shadow: 0 0 15px rgba(52, 152, 219, 0.4); }
+        .filter-btn.top-btn { border-color: #f1c40f; color: #f1c40f; }
+        .filter-btn.top-btn.active { background: #f1c40f; color: #000; border-color: #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); }
+
+        .rank-gold { color: #f1c40f !important; text-shadow: 0 0 20px rgba(241, 196, 15, 0.9); }
+        .rank-silver { color: #bdc3c7 !important; text-shadow: 0 0 15px rgba(189, 195, 199, 0.7); }
+        .rank-bronze { color: #e67e22 !important; text-shadow: 0 0 15px rgba(230, 126, 34, 0.7); }
+
+        .multi-kit-wrapper { display: flex; gap: 10px; flex-wrap: wrap; }
+        .kit-badge-item { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 6px; }
+
+        .search-container { 
+            width: 100%; 
+            max-width: 900px; 
+            display: flex; 
+            justify-content: flex-end; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            gap: 20px;
+        }
+
+        /* FIXLENEN DEV-INFO PARLAMASI */
+        .dev-container { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end; 
+            gap: 2px;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .dev-info { 
+            color: rgba(255, 255, 255, 0.08); /* Çok opak */
+            font-size: 10px; 
+            font-weight: 500; 
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        .dev-contact { 
+            color: rgba(255, 255, 255, 0.05); /* Çok opak */
+            font-size: 7.5px; 
+            transition: all 0.3s ease;
+        }
+
+        /* Container'ın üzerine gelince yazılar parlar */
+        .dev-container:hover .dev-info {
+            color: rgba(255, 255, 255, 0.7); 
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            font-size: 11px; 
+        }
+
+        .dev-container:hover .dev-contact {
+            color: rgba(255, 255, 255, 0.9); 
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+            font-size: 10px; 
+        }
+
+        .tier-table { width: 100%; max-width: 1000px; border-collapse: separate; border-spacing: 0 12px; }
+        
+        .player-row td { 
+            padding: 20px 25px; 
+            background: var(--card-bg); 
+            font-size: 18px; 
+            border-top: 1px solid #1f1f1f; 
+            border-bottom: 1px solid #1f1f1f; 
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .player-row:hover td { 
+            background: rgba(45, 45, 45, 0.9);
+            border-color: rgba(52, 152, 219, 0.3);
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.1);
+        }
+        
+        .player-head { width: 45px; height: 45px; border-radius: 8px; vertical-align: middle; margin-right: 15px; image-rendering: pixelated; }
+        .kit-icon { width: 28px; height: 28px; image-rendering: pixelated; }
+        .tier-badge { padding: 6px 12px; border-radius: 6px; font-weight: 900; font-size: 13px; text-transform: uppercase; }
+        
+        .ht1 { color: #f1c40f; border: 1px solid #f1c40f; background: rgba(241, 196, 15, 0.15); }
+        .lt1 { color: #fff; border: 1px solid #fff; background: rgba(255, 255, 255, 0.1); }
+        .ht2 { color: #3498db; border: 1px solid #3498db; background: rgba(52, 152, 219, 0.1); }
+        .lt2 { color: #8b0000; border: 1px solid #8b0000; background: rgba(139, 0, 0, 0.1); }
+        .ht3 { color: #e67e22; border: 1px solid #e67e22; background: rgba(230, 126, 34, 0.1); }
+        .lt3 { color: #ff0000; border: 1px solid #ff0000; background: rgba(255, 0, 0, 0.1); }
+
+        .hover-delete-btn { background: #c0392b; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; display: none; }
+        tr:hover .hover-delete-btn { display: block; }
+
+        #adminSection { margin-top: 50px; background: #111; padding: 30px; border-radius: 15px; width: 100%; max-width: 900px; display:none; position: relative; }
+        #statusMsg { position: absolute; bottom: 10px; right: 30px; color: #2ecc71; font-weight: bold; opacity: 0; transition: opacity 0.3s; }
+        
+        .admin-btn { background: var(--accent-color); color:#fff; border:none; padding:12px 25px; border-radius:8px; cursor:pointer; font-weight:bold; }
+        #customModal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:9999; backdrop-filter: blur(10px); }
+        .modal-box { background:#161616; padding:40px; border-radius:20px; border:1px solid #333; text-align:center; width:350px; }
+        input, select { background: #000; color: #fff; border: 1px solid #333; padding: 12px; border-radius: 8px; outline: none; }
+    </style>
+</head>
+<body>
+    <div id="particles-js"></div>
+
+    <div id="customModal">
+        <div class="modal-box">
+            <img id="confirmHead" style="width:80px; height:80px; image-rendering:pixelated; margin-bottom:20px; border-radius: 12px;">
+            <h3 style="margin:0;"><span id="confirmName" style="color:var(--accent-color)"></span></h3>
+            <p style="color:#aaa; margin-top:10px;">Silmek istediğine emin misin?</p>
+            <div style="margin-top:25px; display:flex; gap:15px; justify-content:center;">
+                <button class="admin-btn" style="background:#c0392b" onclick="confirmDelete()">Evet, Sil</button>
+                <button class="admin-btn" style="background:#333;" onclick="document.getElementById('customModal').style.display='none'">İptal</button>
+            </div>
+        </div>
+    </div>
+
+    <h1>TIERTEST 
+        <a href="https://discord.gg/tiertest" target="_blank" class="discord-link">
+            <i class="fab fa-discord"></i>
+        </a>
+    </h1>
+
+    <div class="filter-section">
+        <button class="filter-btn active" onclick="filterByKit('All')">Hepsi</button>
+        <button class="filter-btn top-btn" onclick="filterByKit('TopTier')">EN İYİLER</button>
+        <button class="filter-btn" onclick="filterByKit('Sword')">Sword</button>
+        <button class="filter-btn" onclick="filterByKit('Crystal')">Crystal</button>
+        <button class="filter-btn" onclick="filterByKit('Mace')">Mace</button>
+        <button class="filter-btn" onclick="filterByKit('NethPot')">NethPot</button>
+        <button class="filter-btn" onclick="filterByKit('SMP')">SMP</button>
+        <button class="filter-btn" onclick="filterByKit('Axe')">Axe</button>
+    </div>
+
+    <div class="search-container">
+        <div class="dev-container">
+            <span class="dev-info">Diony tarafından geliştirildi</span>
+            <span class="dev-contact">İşbirliği ve önerileriniz için discord: mezarlik</span>
+        </div>
+        <input type="text" id="playerSearch" placeholder="Oyuncu Ara..." onkeyup="searchPlayer()" style="background:var(--card-bg); border:1px solid #333; color:#fff; padding:12px 20px; border-radius:10px; outline:none; width:250px;">
+    </div>
+
+    <table class="tier-table">
+        <tbody id="leaderboard"></tbody>
+    </table>
+
+    <button onclick="document.getElementById('adminSection').style.display='block'" style="margin-top:40px; background:none; border:none; color:#222; cursor:pointer;">AdminPanel</button>
+
+    <div id="adminSection">
+        <div id="loginArea">
+            <input type="password" id="adminPassInput" placeholder="Şifre" style="background:#000; color:#fff; padding:12px; border:1px solid #333; border-radius:8px;">
+            <button class="admin-btn" onclick="tryLogin()">Giriş</button>
+        </div>
+        <div id="adminControls" style="display:none;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:15px;">
+                <input type="text" id="admName" placeholder="İsim" style="background:#000; color:#fff; border:1px solid #333; padding:12px; border-radius:8px;">
+                <select id="admKit" style="background:#000; color:#fff; border:1px solid #333; padding:12px; border-radius:8px;">
+                    <option value="Sword">Sword</option><option value="Crystal">Crystal</option>
+                    <option value="Mace">Mace</option><option value="NethPot">NethPot</option>
+                    <option value="SMP">SMP</option><option value="Axe">Axe</option><option value="DiaPot">DiaPot</option>
+                </select>
+                <select id="admTier" style="background:#000; color:#fff; border:1px solid #333; padding:12px; border-radius:8px;">
+                    <option value="HT1">HT1</option><option value="LT1">LT1</option><option value="HT2">HT2</option>
+                    <option value="LT2">LT2</option><option value="HT3">HT3</option><option value="LT3">LT3</option>
+                    <option value="HT4">HT4</option><option value="LT4">LT4</option><option value="HT5">HT5</option><option value="LT5">LT5</option>
+                </select>
+                <select id="admRegion" style="background:#000; color:#fff; border:1px solid #333; padding:12px; border-radius:8px;">
+                    <option value="TR">TR</option><option value="EU">EU</option>
+                </select>
+            </div>
+            <button class="admin-btn" style="margin-top:20px; width:100%;" onclick="addOrUpdatePlayer()">Kaydet</button>
+        </div>
+        <div id="statusMsg"></div>
+    </div>
+
+    <script>
+        particlesJS("particles-js", {
+            "particles": { "number": { "value": 80 }, "size": { "value": 2.5 }, "line_linked": { "opacity": 0.2 }, "move": { "speed": 2 } }
+        });
+    </script>
+</body>
+</html>
